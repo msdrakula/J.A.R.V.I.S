@@ -1,0 +1,51 @@
+# Бинарники
+jarvis
+jarvis.exe
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Результаты сканирования
+results/
+*.db
+*.sqlite
+
+# Тестовые артефакты
+*.test
+*.out
+coverage.txt
+
+# IDE и редакторы
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Go специфичное
+vendor/
+*.prof
+
+# Временные файлы
+tmp/
+temp/
+*.log
+
+# Конфигурационные файлы с секретами (пользователь должен создать свои)
+config.yaml
+.env
+.env.local

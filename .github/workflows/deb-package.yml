@@ -1,0 +1,66 @@
+name: Build DEB Package
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-deb:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y dpkg-dev
+
+      - name: Build binary
+        run: GOOS=linux GOARCH=amd64 go build -o jarvis ./cmd/jarvis
+
+      - name: Create DEB package structure
+        run: |
+          mkdir -p deb-package/DEBIAN
+          mkdir -p deb-package/usr/bin
+          mkdir -p deb-package/usr/share/jarvis
+
+          cp jarvis deb-package/usr/bin/
+          chmod 755 deb-package/usr/bin/jarvis
+
+          cp config.example.yaml deb-package/usr/share/jarvis/
+          cp rules.yaml deb-package/usr/share/jarvis/
+          cp waf_signatures.yaml deb-package/usr/share/jarvis/
+          cp -r wordlists deb-package/usr/share/jarvis/ 2>/dev/null || true
+
+          cat > deb-package/DEBIAN/control << EOF
+          Package: jarvis
+          Version: ${GITHUB_REF_NAME#v}
+          Section: utils
+          Priority: optional
+          Architecture: amd64
+          Maintainer: JARVIS Contributors
+          Description: JARVIS - Safe Internal Audit Tool
+           Modular CLI tool for automated security configuration audit.
+          EOF
+
+      - name: Build DEB
+        run: |
+          dpkg-deb --build deb-package
+          mv deb-package.deb jarvis_${GITHUB_REF_NAME#v}_amd64.deb
+
+      - name: Upload to Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: jarvis_${{ github.ref_name }}_amd64.deb
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

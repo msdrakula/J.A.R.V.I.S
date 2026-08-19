@@ -1,0 +1,27 @@
+output_dir: ./results
+report_dir: ./reports
+rules_path: ./rules.yaml
+waf_signatures_path: ./waf_signatures.yaml
+verbose: false
+quiet: false
+
+http:
+  timeout_seconds: 15
+  max_redirects: 5
+  retry_count: 2
+  retry_delay_millis: 300
+  rate_limit_per_sec: 5
+  proxy: ""
+  user_agents:
+    - jarvis-safe-audit/1.0
+  insecure_skip_verify: false
+
+inventory:
+  domains:
+    - example.com
+  hosts:
+    - address: 192.168.1.10
+      ports: [22, 80, 443]
+  urls:
+    - base: https://example.com
+      paths: ["/", "/robots.txt", "/sitemap.xml"]

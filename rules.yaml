@@ -1,0 +1,39 @@
+- id: env-exposure-check
+  description: "Проверка недоступности файла .env"
+  path: "/.env"
+  expected_status: 403
+  severity: "high"
+
+- id: backup-directory-check
+  description: "Проверка недоступности каталога /backup/"
+  path: "/backup/"
+  expected_status: 404
+  severity: "medium"
+
+- id: robots-presence-check
+  description: "Проверка доступности robots.txt"
+  path: "/robots.txt"
+  expected_status: 200
+  severity: "info"
+
+- id: hsts-header-check
+  description: "Проверка наличия HSTS на главной странице"
+  path: "/"
+  severity: "low"
+  matchers:
+    - type: header
+      part: header
+      name: "Strict-Transport-Security"
+
+- id: error-page-check
+  description: "Проверка отсутствия подробных сообщений об ошибках"
+  path: "/"
+  severity: "medium"
+  matchers:
+    - type: word
+      part: body
+      words:
+        - "fatal error"
+        - "stack trace"
+        - "exception"
+      condition: or
