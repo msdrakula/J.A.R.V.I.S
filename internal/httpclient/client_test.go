@@ -43,6 +43,27 @@ func TestClientDo(t *testing.T) {
 	}
 }
 
+func TestClientNilSafe(t *testing.T) {
+	var client *Client
+	if _, err := client.Do(RequestOptions{URL: "http://example.com"}); err == nil {
+		t.Fatal("expected error for nil client")
+	}
+	empty := &Client{}
+	if _, err := empty.Do(RequestOptions{URL: "http://example.com"}); err == nil {
+		t.Fatal("expected error for uninitialized client")
+	}
+}
+
+func TestNewClientZeroConfig(t *testing.T) {
+	client, err := NewClient(config.HTTPConfig{})
+	if err != nil {
+		t.Fatalf("new client: %v", err)
+	}
+	if client == nil || client.httpClient == nil {
+		t.Fatal("expected initialized client")
+	}
+}
+
 func TestClientTimeout(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(100 * time.Millisecond)

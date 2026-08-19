@@ -56,11 +56,20 @@ func LoadRules(path string) ([]Rule, error) {
 }
 
 func (c *Checker) Check(scanID, baseURL string, rules []Rule) error {
+	if c == nil || c.client == nil {
+		return fmt.Errorf("compliance checker is not initialized")
+	}
+	if len(rules) == 0 || strings.TrimSpace(baseURL) == "" {
+		return nil
+	}
 	for _, rule := range rules {
 		url := strings.TrimRight(baseURL, "/") + "/" + strings.TrimLeft(rule.Path, "/")
 		resp, err := c.client.Do(httpclient.RequestOptions{Method: "GET", URL: url, FollowRedirects: true})
 		if err != nil {
 			return fmt.Errorf("request %s: %w", url, err)
+		}
+		if resp == nil {
+			continue
 		}
 
 		matched := false

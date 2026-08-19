@@ -36,7 +36,7 @@ type Detector struct {
 // LoadSignatures читает YAML-файл сигнатур.
 func LoadSignatures(path string) ([]Signature, error) {
 	if path == "" {
-		return nil, fmt.Errorf("signatures path is required")
+		return nil, nil
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -57,9 +57,18 @@ func New(client *httpclient.Client, store *storage.Store, signatures []Signature
 // Detect делает один обычный GET-запрос и пассивно анализирует ответ.
 // Найденные совпадения сохраняются в findings с severity "info".
 func (d *Detector) Detect(scanID, rawURL string) ([]Detection, error) {
+	if d == nil || d.client == nil {
+		return nil, fmt.Errorf("waf detector is not initialized")
+	}
+	if strings.TrimSpace(rawURL) == "" {
+		return nil, fmt.Errorf("url is required")
+	}
 	resp, err := d.client.Do(httpclient.RequestOptions{Method: "GET", URL: rawURL, FollowRedirects: true})
 	if err != nil {
 		return nil, fmt.Errorf("request %s: %w", rawURL, err)
+	}
+	if resp == nil {
+		return nil, fmt.Errorf("empty response from %s", rawURL)
 	}
 
 	detections := MatchSignatures(d.signatures, resp.Headers, resp.Body)

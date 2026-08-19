@@ -220,7 +220,14 @@ func (s *Store) AddTLSInfo(scanID string, info TLSInfo) error {
 }
 
 func (s *Store) AddAssetPath(scanID string, path AssetPath) error {
-	_, err := s.db.Exec(`INSERT INTO asset_paths (scan_id, url, status_code, size, content_type) VALUES (?, ?, ?, ?, ?)`,
+	if err := s.insertAssetPath("asset_paths", scanID, path); err != nil {
+		return err
+	}
+	return s.insertAssetPath("paths", scanID, path)
+}
+
+func (s *Store) insertAssetPath(table, scanID string, path AssetPath) error {
+	_, err := s.db.Exec(`INSERT INTO `+table+` (scan_id, url, status_code, size, content_type) VALUES (?, ?, ?, ?, ?)`,
 		scanID, path.URL, path.StatusCode, path.Size, path.ContentType)
 	return err
 }

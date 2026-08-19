@@ -18,11 +18,8 @@ import (
 	"github.com/msdrakula/J.A.R.V.I.S/internal/httpclient"
 	"github.com/msdrakula/J.A.R.V.I.S/internal/logger"
 	"github.com/msdrakula/J.A.R.V.I.S/internal/modules/availability"
-	"github.com/msdrakula/J.A.R.V.I.S/internal/modules/compliance"
 	"github.com/msdrakula/J.A.R.V.I.S/internal/modules/recon"
-	"github.com/msdrakula/J.A.R.V.I.S/internal/modules/resilience"
 	"github.com/msdrakula/J.A.R.V.I.S/internal/modules/urlaudit"
-	"github.com/msdrakula/J.A.R.V.I.S/internal/modules/waflib"
 	"github.com/msdrakula/J.A.R.V.I.S/internal/report"
 	"github.com/msdrakula/J.A.R.V.I.S/internal/storage"
 )
@@ -60,6 +57,10 @@ func loadRuntime() (*config.Config, *zap.Logger, *storage.Store, string, error) 
 	if err != nil {
 		return nil, nil, nil, "", err
 	}
+	if cfg == nil {
+		cfg = config.Defaults()
+	}
+	cfg.Normalize()
 
 	if outputDir != "" {
 		cfg.OutputDir = outputDir
@@ -71,6 +72,9 @@ func loadRuntime() (*config.Config, *zap.Logger, *storage.Store, string, error) 
 	log, err := logger.New(verbose, quiet)
 	if err != nil {
 		return nil, nil, nil, "", err
+	}
+	if log == nil {
+		log = zap.NewNop()
 	}
 
 	if err := os.MkdirAll(cfg.OutputDir, 0o755); err != nil {
@@ -93,6 +97,9 @@ func newScanID() string {
 }
 
 func createScan(store *storage.Store, target string, modules []string, output string) (string, error) {
+	if store == nil {
+		return "", fmt.Errorf("storage is not initialized")
+	}
 	id := newScanID()
 	scan := storage.Scan{
 		ID:         id,
@@ -125,148 +132,6 @@ func loadWordlist(path string) ([]string, error) {
 		result = append(result, line)
 	}
 	return result, nil
-}
-
-func newScanCmd() *cobra.Command {
-	var level int
-	cmd := &cobra.Command{
-		Use:   "scan",
-		Short: "Run safe inventory audit",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, log, store, dbPath, err := loadRuntime()
-			if err != nil {
-				return err
-			}
-			defer store.Close()
-
-			profile, err := config.ProfileForLevel(level)
-			if err != nil {
-				return err
-			}
-			cfg.ApplyProfile(profile)
-			log.Info("audit profile", zap.String("profile", profile.Name), zap.Int("level", profile.Level))
-
-			client, err := httpclient.NewClient(cfg.HTTP)
-			if err != nil {
-				return err
-			}
-
-			scanID, err := createScan(store, "inventory", []string{"recon", "availability", "waf", "urlaudit", "compliance", "resilience"}, cfg.OutputDir)
-			if err != nil {
-				return err
-			}
-
-			reconAuditor := recon.New(client, store)
-			availabilityChecker := availability.New(store)
-			urlAuditor := urlaudit.New(client, store)
-			complianceChecker := compliance.New(client, store)
-
-			var errs []string
-
-			interrupted := func() bool {
-				if cmd.Context().Err() != nil {
-					_ = store.UpdateScanStatus(scanID, "paused")
-					return true
-				}
-				return false
-			}
-
-			for _, domain := range cfg.Inventory.Domains {
-				if interrupted() {
-					return cmd.Context().Err()
-				}
-				if _, err := reconAuditor.ResolveDNS(scanID, domain); err != nil {
-					errs = append(errs, err.Error())
-				}
-				if _, err := reconAuditor.ReadTLS(scanID, domain); err != nil {
-					errs = append(errs, err.Error())
-				}
-				if _, err := reconAuditor.FetchRobots(scanID, "https://"+domain); err != nil {
-					errs = append(errs, err.Error())
-				}
-				if _, err := reconAuditor.FetchSitemap(scanID, "https://"+domain); err != nil {
-					errs = append(errs, err.Error())
-				}
-				if _, err := reconAuditor.ExtractFormParameters(scanID, "https://"+domain); err != nil {
-					errs = append(errs, err.Error())
-				}
-			}
-
-			for _, host := range cfg.Inventory.Hosts {
-				if interrupted() {
-					return cmd.Context().Err()
-				}
-				for _, port := range host.Ports {
-					if _, err := availabilityChecker.CheckTCP(scanID, host.Address, port); err != nil {
-						errs = append(errs, err.Error())
-					}
-				}
-			}
-
-			wafSigs, err := waflib.LoadSignatures(cfg.WAFSignaturesPath)
-			if err != nil {
-				errs = append(errs, err.Error())
-			} else {
-				wafDetector := waflib.New(client, store, wafSigs)
-				for _, target := range cfg.Inventory.URLs {
-					if interrupted() {
-						return cmd.Context().Err()
-					}
-					detections, err := wafDetector.Detect(scanID, target.Base)
-					if err != nil {
-						errs = append(errs, err.Error())
-						continue
-					}
-					for _, det := range detections {
-						fmt.Printf("[+] WAF Detected: %s\n", det.Name)
-						for _, ev := range det.Evidence {
-							fmt.Printf("    Evidence: %s\n", ev)
-						}
-					}
-				}
-			}
-
-			rules, err := compliance.LoadRules(cfg.RulesPath)
-			if err != nil {
-				errs = append(errs, err.Error())
-			}
-
-			for _, target := range cfg.Inventory.URLs {
-				if interrupted() {
-					return cmd.Context().Err()
-				}
-				if _, err := urlAuditor.CheckPaths(scanID, target.Base, target.Paths); err != nil {
-					errs = append(errs, err.Error())
-				}
-				if err := complianceChecker.Check(scanID, target.Base, rules); err != nil {
-					errs = append(errs, err.Error())
-				}
-			}
-
-			resilienceChecker := resilience.New(client, store)
-			if interrupted() {
-				return cmd.Context().Err()
-			}
-			if err := resilienceChecker.Check(scanID); err != nil {
-				errs = append(errs, err.Error())
-			}
-
-			log.Info("audit completed", zap.String("db", dbPath), zap.String("scan_id", scanID))
-			fmt.Println("Scan completed:", scanID)
-			if len(errs) > 0 {
-				_ = store.UpdateScanStatus(scanID, "failed")
-				fmt.Println("Warnings:")
-				for _, item := range errs {
-					fmt.Println("-", item)
-				}
-			} else {
-				_ = store.UpdateScanStatus(scanID, "completed")
-			}
-			return nil
-		},
-	}
-	cmd.Flags().IntVar(&level, "level", 3, "Audit intensity level 1-5 (1=stealth, 3=normal, 5=thorough)")
-	return cmd
 }
 
 func newReconCmd() *cobra.Command {

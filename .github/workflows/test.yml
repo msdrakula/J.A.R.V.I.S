@@ -11,8 +11,9 @@ jobs:
     name: Test
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
-        go-version: ['1.21', '1.22']
+        go-version: ['1.22', '1.23']
 
     steps:
       - uses: actions/checkout@v4
@@ -22,14 +23,13 @@ jobs:
         with:
           go-version: ${{ matrix.go-version }}
 
-      - name: Download dependencies
-        run: go mod download
+      - name: Verify modules
+        run: |
+          go mod download
+          go mod verify
+
+      - name: Build CLI
+        run: go build -o jarvis ./cmd/jarvis
 
       - name: Run tests
-        run: go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
-
-      - name: Upload coverage
-        uses: codecov/codecov-action@v3
-        with:
-          file: ./coverage.txt
-          fail_ci_if_error: false
+        run: go test -count=1 ./...

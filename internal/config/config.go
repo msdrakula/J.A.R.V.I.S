@@ -1,6 +1,7 @@
 package config
 
 import (
+	"os"
 	"strings"
 
 	"github.com/spf13/viper"
@@ -44,7 +45,81 @@ type InventoryURL struct {
 	Paths []string `mapstructure:"paths"`
 }
 
+// Defaults возвращает рабочую конфигурацию без YAML-файла.
+func Defaults() *Config {
+	cfg := &Config{
+		OutputDir:         "./results",
+		ReportDir:         "./reports",
+		RulesPath:         "rules.yaml",
+		WAFSignaturesPath: "waf_signatures.yaml",
+		HTTP: HTTPConfig{
+			TimeoutSeconds:   15,
+			MaxRedirects:     5,
+			RetryCount:       2,
+			RetryDelayMillis: 300,
+			RateLimitPerSec:  5,
+			UserAgents:       []string{"jarvis-safe-audit/1.0"},
+		},
+	}
+	return cfg
+}
+
+// Normalize заполняет нулевые поля безопасными значениями. Никогда не паникует.
+func (c *Config) Normalize() {
+	if c == nil {
+		return
+	}
+	if c.OutputDir == "" {
+		c.OutputDir = "./results"
+	}
+	if c.ReportDir == "" {
+		c.ReportDir = "./reports"
+	}
+	c.HTTP.Normalize()
+}
+
+// Normalize заполняет HTTP-дефолты, чтобы клиент не делил на ноль и не брал пустой UA.
+func (h *HTTPConfig) Normalize() {
+	if h == nil {
+		return
+	}
+	if h.TimeoutSeconds <= 0 {
+		h.TimeoutSeconds = 15
+	}
+	if h.MaxRedirects < 0 {
+		h.MaxRedirects = 5
+	}
+	if h.RetryCount < 0 {
+		h.RetryCount = 0
+	}
+	if h.RetryDelayMillis < 0 {
+		h.RetryDelayMillis = 0
+	}
+	if h.RateLimitPerSec < 0 {
+		h.RateLimitPerSec = 0
+	}
+	if len(h.UserAgents) == 0 {
+		h.UserAgents = []string{"jarvis-safe-audit/1.0"}
+	}
+}
+
+// ExistingFile возвращает path, если файл есть, иначе пустую строку.
+func ExistingFile(path string) string {
+	if path == "" {
+		return ""
+	}
+	if _, err := os.Stat(path); err != nil {
+		return ""
+	}
+	return path
+}
+
 func Load(path string) (*Config, error) {
+	cfg := Defaults()
+	if strings.TrimSpace(path) == "" {
+		return cfg, nil
+	}
+
 	v := viper.New()
 	v.SetConfigFile(path)
 	v.SetConfigType("yaml")
@@ -52,27 +127,25 @@ func Load(path string) (*Config, error) {
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	v.AutomaticEnv()
 
-	v.SetDefault("output_dir", "./results")
-	v.SetDefault("report_dir", "./reports")
-	v.SetDefault("rules_path", "rules.yaml")
-	v.SetDefault("waf_signatures_path", "waf_signatures.yaml")
-	v.SetDefault("http.timeout_seconds", 15)
-	v.SetDefault("http.max_redirects", 5)
-	v.SetDefault("http.retry_count", 2)
-	v.SetDefault("http.retry_delay_millis", 300)
-	v.SetDefault("http.rate_limit_per_sec", 5)
-	v.SetDefault("http.user_agents", []string{"jarvis-safe-audit/1.0"})
+	v.SetDefault("output_dir", cfg.OutputDir)
+	v.SetDefault("report_dir", cfg.ReportDir)
+	v.SetDefault("rules_path", cfg.RulesPath)
+	v.SetDefault("waf_signatures_path", cfg.WAFSignaturesPath)
+	v.SetDefault("http.timeout_seconds", cfg.HTTP.TimeoutSeconds)
+	v.SetDefault("http.max_redirects", cfg.HTTP.MaxRedirects)
+	v.SetDefault("http.retry_count", cfg.HTTP.RetryCount)
+	v.SetDefault("http.retry_delay_millis", cfg.HTTP.RetryDelayMillis)
+	v.SetDefault("http.rate_limit_per_sec", cfg.HTTP.RateLimitPerSec)
+	v.SetDefault("http.user_agents", cfg.HTTP.UserAgents)
 	v.SetDefault("http.insecure_skip_verify", false)
 
-	if path != "" {
-		if err := v.ReadInConfig(); err != nil {
-			return nil, err
-		}
-	}
-
-	var cfg Config
-	if err := v.Unmarshal(&cfg); err != nil {
+	if err := v.ReadInConfig(); err != nil {
 		return nil, err
 	}
-	return &cfg, nil
+
+	if err := v.Unmarshal(cfg); err != nil {
+		return nil, err
+	}
+	cfg.Normalize()
+	return cfg, nil
 }

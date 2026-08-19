@@ -1,6 +1,7 @@
-# Бинарники
-jarvis
-jarvis.exe
+# Бинарники только в корне репозитория.
+# Не использовать шаблон "jarvis" — иначе Git игнорирует исходники cmd/jarvis/.
+/jarvis
+/jarvis.exe
 *.exe
 *.dll
 *.so
@@ -49,3 +50,16 @@ temp/
 config.yaml
 .env
 .env.local
+
+# Служебные дампы (не исходники проекта)
+/annotations.json
+/checkruns.json
+/jobs.json
+/jobs2.json
+/latest.json
+/runs.json
+/runs2.json
+/runs3.json
+/joblog.txt
+/joblog2.txt
+/remote_go.sum

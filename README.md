@@ -2,8 +2,8 @@
 
 **Joint Automated Reconnaissance & Vulnerability Inspection System**
 
-[![Go Version](https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat&logo=go)](https://golang.org/)
-[![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
+[![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8?style=flat&logo=go)](https://golang.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Tests](https://github.com/msdrakula/J.A.R.V.I.S/actions/workflows/test.yml/badge.svg)](https://github.com/msdrakula/J.A.R.V.I.S/actions/workflows/test.yml)
 [![Release](https://img.shields.io/github/v/release/msdrakula/J.A.R.V.I.S)](https://github.com/msdrakula/J.A.R.V.I.S/releases)
 
@@ -24,7 +24,27 @@
 
 ## 📦 Установка
 
-### Из исходников
+Нужен **Go 1.22+** (`go version`). На Kali rolling обычно уже стоит.
+
+### Kali / Linux (клонирование репозитория)
+
+```bash
+git clone https://github.com/msdrakula/J.A.R.V.I.S.git
+cd J.A.R.V.I.S
+go build -o jarvis ./cmd/jarvis
+./jarvis --help
+```
+
+Если репозиторий уже склонирован, обновите его и пересоберите:
+
+```bash
+cd ~/J.A.R.V.I.S
+git pull
+go build -o jarvis ./cmd/jarvis
+./jarvis --help
+```
+
+### Из исходников (модуль)
 
 ```bash
 go install github.com/msdrakula/J.A.R.V.I.S/cmd/jarvis@latest
@@ -43,43 +63,37 @@ sudo dpkg -i jarvis_amd64.deb
 
 ## 🚀 Быстрый старт
 
+Как Nuclei/httpx: цель передаётся флагом `-u`. **config.yaml не нужен.**
+
 ```bash
-# 1. Создай конфигурационный файл (см. config.example.yaml)
-cat > config.yaml << EOF
-output_dir: ./results
-report_dir: ./reports
-rules_path: ./rules.yaml
-waf_signatures_path: ./waf_signatures.yaml
+# Домен или URL
+./jarvis scan -u https://example.com -o ./results
 
-inventory:
-  domains:
-    - example.com
-  hosts:
-    - address: 192.168.1.10
-      ports: [22, 80, 443]
-  urls:
-    - base: https://example.com
-      paths: ["/", "/robots.txt", "/sitemap.xml"]
-EOF
+# Короткий домен (будет https://)
+./jarvis scan -u example.com -o ./results
 
-# 2. Запусти полный скан
-jarvis scan -c config.yaml --level 3 -o ./results
+# IP — проверка портов 22, 80, 443
+./jarvis scan -u 192.168.1.10 -o ./results
 
-# 3. Просмотри результаты
-jarvis history -o ./results
-jarvis show <scan_id> -o ./results
-
-# 4. Сгенерируй отчёт
-jarvis report <scan_id> --format html --output dashboard.html -o ./results
+# Результаты
+./jarvis history -o ./results
+./jarvis show <scan_id> -o ./results
+./jarvis report <scan_id> --format html --output dashboard.html -o ./results
 ```
+
+`-u` и `--target` — одно и то же. `--level` по умолчанию 3. `-c config.yaml` опционален.
+
+Сканируйте только системы, на которые у вас есть разрешение.
 
 ## 📖 Документация
 
 ### Основные команды
 
 ```bash
-# Сканирование
-jarvis scan -c config.yaml --level 3 -o ./results
+# Сканирование (цель обязательна, YAML нет)
+jarvis scan -u https://example.com -o ./results
+jarvis scan -u 192.168.1.10 -p 22,80,443,8080 -o ./results
+jarvis scan --target example.com --level 2 -o ./results
 
 # Отдельные модули
 jarvis recon -u example.com -o ./results
@@ -107,6 +121,30 @@ jarvis report <scan_id> --format nmap --output nmap.xml -o ./results
 | 3 | normal | 10 | 10 req/s | 15s | 3 |
 | 4 | aggressive | 25 | 50 req/s | 10s | 4 |
 | 5 | thorough | 50 | 100 req/s | 5s | 5 |
+
+### Advanced Configuration
+
+`config.yaml` не обязателен. Он нужен, чтобы переопределить таймауты, прокси, пути к `rules.yaml` и `waf_signatures.yaml`:
+
+```bash
+./jarvis scan -u https://example.com -c config.example.yaml --level 3 -o ./results
+```
+
+Пример `config.example.yaml`:
+
+```yaml
+output_dir: ./results
+report_dir: ./reports
+rules_path: ./rules.yaml
+waf_signatures_path: ./waf_signatures.yaml
+
+http:
+  timeout_seconds: 15
+  rate_limit_per_sec: 5
+  proxy: ""
+```
+
+Секция `inventory` в YAML больше не нужна для обычного запуска: цель задаётся через `-u`.
 
 ### YAML-шаблоны (rules.yaml)
 
@@ -154,14 +192,17 @@ jarvis/
 └── waf_signatures.yaml      # Сигнатуры WAF
 ```
 
+## ⚠️ Отказ от ответственности
+
+J.A.R.V.I.S. предназначен **только** для легального аудита: собственных систем, систем с явным разрешением владельца, авторизованных bug bounty-программ, исследований и обучения.
+
+Использование инструмента против систем **без предварительного согласия** владельца **незаконно**. Авторы и контрибьюторы **не несут ответственности** за противоправное использование, включая действия хакеров и любой причинённый ущерб. Вся ответственность лежит на конечном пользователе.
+
+Полный текст: [DISCLAIMER.md](DISCLAIMER.md).
+
 ## 📜 Лицензия
 
-Этот проект распространяется под лицензией **GNU AGPL v3**.
-
-✅ **Бесплатно** для личного использования, исследований, bug bounty и обучения.  
-💼 **Для коммерческого использования** в компаниях требуется приобретение коммерческой лицензии.
-
-Если вы представляете организацию и хотите использовать J.A.R.V.I.S. в коммерческих целях, пожалуйста, свяжитесь с нами.
+J.A.R.V.I.S. распространяется под лицензией **MIT**. См. [LICENSE](LICENSE).
 
 ## 🤝 Участие в разработке
 

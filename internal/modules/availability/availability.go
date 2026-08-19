@@ -19,6 +19,9 @@ func New(store *storage.Store) *Checker {
 }
 
 func (c *Checker) CheckTCP(scanID, host string, port int) (*storage.ServiceAvailability, error) {
+	if c == nil {
+		return nil, fmt.Errorf("availability checker is not initialized")
+	}
 	address := net.JoinHostPort(host, fmt.Sprintf("%d", port))
 	conn, err := net.DialTimeout("tcp", address, 3*time.Second)
 	result := &storage.ServiceAvailability{Host: host, Port: port, State: "closed"}

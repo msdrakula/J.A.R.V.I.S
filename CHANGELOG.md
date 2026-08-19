@@ -5,6 +5,16 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 и этот проект придерживается [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- Лицензия изменена с GNU AGPL v3 на MIT
+- `jarvis scan -u` / `--target`: запуск без обязательного config.yaml (URL/домен → recon+urlaudit+compliance, IP → portscan)
+- Добавлен [DISCLAIMER.md](DISCLAIMER.md): отказ от ответственности за незаконное использование
+- В репозиторий включены исходники `cmd/jarvis` (раньше игнорировались `.gitignore`)
+- `go.mod` дополнен indirect-зависимостями — `go build` работает без `go mod tidy`
+- Минимальная версия Go: 1.22
+
 ## [1.0.0] - 2026-08-19
 
 ### Added

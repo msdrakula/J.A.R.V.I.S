@@ -36,7 +36,7 @@ func New(client *httpclient.Client, store *storage.Store) *Checker {
 // Check читает параметры, найденные recon-этапом, и для каждого отправляет
 // не более двух безобидных запросов с маркерными значениями.
 func (c *Checker) Check(scanID string) error {
-	if c.client == nil || c.store == nil {
+	if c == nil || c.client == nil || c.store == nil {
 		return fmt.Errorf("resilience checker requires client and store")
 	}
 

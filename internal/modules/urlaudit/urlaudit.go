@@ -28,6 +28,13 @@ func New(client *httpclient.Client, store *storage.Store) *Auditor {
 }
 
 func (a *Auditor) CheckPaths(scanID, baseURL string, paths []string) ([]PathResult, error) {
+	if a == nil || a.client == nil {
+		return nil, fmt.Errorf("url auditor is not initialized")
+	}
+	if strings.TrimSpace(baseURL) == "" {
+		return nil, fmt.Errorf("base url is required")
+	}
+
 	results := []PathResult{}
 	baselineStatus := 0
 	baselineSize := -1
@@ -36,7 +43,10 @@ func (a *Auditor) CheckPaths(scanID, baseURL string, paths []string) ([]PathResu
 		fullURL := strings.TrimRight(baseURL, "/") + "/" + strings.TrimLeft(path, "/")
 		resp, err := a.client.Do(httpclient.RequestOptions{Method: "GET", URL: fullURL, FollowRedirects: true})
 		if err != nil {
-			return nil, fmt.Errorf("request %s: %w", fullURL, err)
+			return results, fmt.Errorf("request %s: %w", fullURL, err)
+		}
+		if resp == nil {
+			continue
 		}
 
 		result := PathResult{

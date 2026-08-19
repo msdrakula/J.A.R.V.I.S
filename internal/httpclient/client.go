@@ -9,6 +9,7 @@ import (
 	"math/rand"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -38,6 +39,8 @@ type Response struct {
 }
 
 func NewClient(cfg config.HTTPConfig) (*Client, error) {
+	cfg.Normalize()
+
 	transport := &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: cfg.InsecureSkipVerify},
 	}
@@ -51,9 +54,13 @@ func NewClient(cfg config.HTTPConfig) (*Client, error) {
 	}
 
 	jar := &cookieJar{store: map[string][]*http.Cookie{}}
+	timeout := time.Duration(cfg.TimeoutSeconds) * time.Second
+	if timeout <= 0 {
+		timeout = 15 * time.Second
+	}
 	client := &http.Client{
 		Transport: transport,
-		Timeout:   time.Duration(cfg.TimeoutSeconds) * time.Second,
+		Timeout:   timeout,
 		Jar:       jar,
 	}
 
@@ -67,11 +74,29 @@ func NewClient(cfg config.HTTPConfig) (*Client, error) {
 }
 
 func (c *Client) Do(opts RequestOptions) (*Response, error) {
+	if c == nil || c.httpClient == nil {
+		return nil, fmt.Errorf("http client is not initialized")
+	}
+	if strings.TrimSpace(opts.URL) == "" {
+		return nil, fmt.Errorf("url is required")
+	}
+	if opts.Method == "" {
+		opts.Method = http.MethodGet
+	}
+
 	var lastErr error
 
-	for attempt := 0; attempt <= c.cfg.RetryCount; attempt++ {
+	retries := c.cfg.RetryCount
+	if retries < 0 {
+		retries = 0
+	}
+
+	for attempt := 0; attempt <= retries; attempt++ {
 		if attempt > 0 {
-			time.Sleep(time.Duration(c.cfg.RetryDelayMillis) * time.Millisecond)
+			delay := time.Duration(c.cfg.RetryDelayMillis) * time.Millisecond
+			if delay > 0 {
+				time.Sleep(delay)
+			}
 		}
 
 		if c.rateTicker != nil {
@@ -98,6 +123,10 @@ func (c *Client) Do(opts RequestOptions) (*Response, error) {
 			lastErr = err
 			continue
 		}
+		if resp == nil {
+			lastErr = fmt.Errorf("empty response from %s", opts.URL)
+			continue
+		}
 
 		body, readErr := readBody(resp)
 		if readErr != nil {
@@ -107,14 +136,22 @@ func (c *Client) Do(opts RequestOptions) (*Response, error) {
 		}
 		resp.Body.Close()
 
+		headers := http.Header{}
+		if resp.Header != nil {
+			headers = resp.Header.Clone()
+		}
+
 		return &Response{
 			StatusCode: resp.StatusCode,
-			Headers:    resp.Header.Clone(),
+			Headers:    headers,
 			Body:       body,
 			Duration:   time.Since(start),
 		}, nil
 	}
 
+	if lastErr == nil {
+		lastErr = fmt.Errorf("request failed: %s", opts.URL)
+	}
 	return nil, lastErr
 }
 
@@ -137,13 +174,25 @@ type cookieJar struct {
 }
 
 func (j *cookieJar) SetCookies(u *url.URL, cookies []*http.Cookie) {
+	if j == nil || u == nil {
+		return
+	}
 	j.mu.Lock()
 	defer j.mu.Unlock()
+	if j.store == nil {
+		j.store = map[string][]*http.Cookie{}
+	}
 	j.store[u.Host] = cookies
 }
 
 func (j *cookieJar) Cookies(u *url.URL) []*http.Cookie {
+	if j == nil || u == nil {
+		return nil
+	}
 	j.mu.Lock()
 	defer j.mu.Unlock()
+	if j.store == nil {
+		return nil
+	}
 	return j.store[u.Host]
 }

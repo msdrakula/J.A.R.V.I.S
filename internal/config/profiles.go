@@ -37,6 +37,14 @@ func ProfileForLevel(level int) (LevelProfile, error) {
 // Значения из профиля переопределяют timeout и rate limit, но не трогают
 // явно заданные прокси и User-Agent.
 func (c *Config) ApplyProfile(profile LevelProfile) {
-	c.HTTP.TimeoutSeconds = profile.TimeoutSeconds
-	c.HTTP.RateLimitPerSec = profile.RateLimitPerSec
+	if c == nil {
+		return
+	}
+	if profile.TimeoutSeconds > 0 {
+		c.HTTP.TimeoutSeconds = profile.TimeoutSeconds
+	}
+	if profile.RateLimitPerSec > 0 {
+		c.HTTP.RateLimitPerSec = profile.RateLimitPerSec
+	}
+	c.HTTP.Normalize()
 }

@@ -47,7 +47,17 @@ func New(client *httpclient.Client, store *storage.Store) *Auditor {
 	return &Auditor{client: client, store: store}
 }
 
+func (a *Auditor) requireClient() error {
+	if a == nil || a.client == nil {
+		return fmt.Errorf("recon auditor is not initialized")
+	}
+	return nil
+}
+
 func (a *Auditor) ResolveDNS(scanID, domain string) (*DNSResult, error) {
+	if a == nil {
+		return nil, fmt.Errorf("recon auditor is not initialized")
+	}
 	result := &DNSResult{Domain: domain}
 	resolver := net.DefaultResolver
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -94,6 +104,9 @@ func (a *Auditor) ResolveDNS(scanID, domain string) (*DNSResult, error) {
 }
 
 func (a *Auditor) ReadTLS(scanID, domain string) (*TLSSummary, error) {
+	if a == nil {
+		return nil, fmt.Errorf("recon auditor is not initialized")
+	}
 	address := net.JoinHostPort(domain, "443")
 	conn, err := tls.DialWithDialer(&net.Dialer{Timeout: 5 * time.Second}, "tcp", address, &tls.Config{ServerName: domain})
 	if err != nil {
@@ -146,10 +159,16 @@ func (a *Auditor) ReadTLS(scanID, domain string) (*TLSSummary, error) {
 }
 
 func (a *Auditor) FetchRobots(scanID, baseURL string) (*RobotsResult, error) {
+	if err := a.requireClient(); err != nil {
+		return nil, err
+	}
 	url := strings.TrimRight(baseURL, "/") + "/robots.txt"
 	resp, err := a.client.Do(httpclient.RequestOptions{Method: "GET", URL: url, FollowRedirects: true})
 	if err != nil {
 		return nil, err
+	}
+	if resp == nil {
+		return &RobotsResult{URL: url}, nil
 	}
 
 	lines := strings.Split(string(resp.Body), "\n")
@@ -170,10 +189,16 @@ func (a *Auditor) FetchRobots(scanID, baseURL string) (*RobotsResult, error) {
 }
 
 func (a *Auditor) FetchSitemap(scanID, baseURL string) (*SitemapResult, error) {
+	if err := a.requireClient(); err != nil {
+		return nil, err
+	}
 	url := strings.TrimRight(baseURL, "/") + "/sitemap.xml"
 	resp, err := a.client.Do(httpclient.RequestOptions{Method: "GET", URL: url, FollowRedirects: true})
 	if err != nil {
 		return nil, err
+	}
+	if resp == nil {
+		return &SitemapResult{URL: url}, nil
 	}
 
 	type urlSet struct {
@@ -200,9 +225,15 @@ func (a *Auditor) FetchSitemap(scanID, baseURL string) (*SitemapResult, error) {
 }
 
 func (a *Auditor) ExtractFormParameters(scanID, rawURL string) ([]string, error) {
+	if err := a.requireClient(); err != nil {
+		return nil, err
+	}
 	resp, err := a.client.Do(httpclient.RequestOptions{Method: "GET", URL: rawURL, FollowRedirects: true})
 	if err != nil {
 		return nil, err
+	}
+	if resp == nil {
+		return nil, nil
 	}
 	return a.ExtractFormParametersFromBody(scanID, rawURL, resp.Body)
 }
@@ -233,9 +264,15 @@ func (a *Auditor) ExtractFormParametersFromBody(scanID, rawURL string, body []by
 }
 
 func (a *Auditor) FetchBody(rawURL string) ([]byte, error) {
+	if err := a.requireClient(); err != nil {
+		return nil, err
+	}
 	resp, err := a.client.Do(httpclient.RequestOptions{Method: "GET", URL: rawURL, FollowRedirects: true})
 	if err != nil {
 		return nil, err
+	}
+	if resp == nil {
+		return nil, nil
 	}
 	return io.ReadAll(strings.NewReader(string(resp.Body)))
 }
