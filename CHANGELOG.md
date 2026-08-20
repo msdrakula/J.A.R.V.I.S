@@ -7,18 +7,15 @@
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-08-20
+
 ### Added
-- `jarvis scan -u` работает без `config.yaml`: при отсутствии файла берутся безопасные дефолты (профиль level 3, стандартные wordlists)
-- `make install` ставит бинарник в `/usr/local/bin` и данные в `/usr/local/share/jarvis`
+- `jarvis scan -u` работает без `config.yaml` (дефолты: level 3, стандартные wordlists)
+- `make install` копирует бинарник в `/usr/local/bin`
 
 ### Changed
-- README переписан как пользовательская инструкция: установка (`go install` / бинарник), быстрый старт в стиле Nuclei, результаты, опциональный YAML, troubleshooting
-- Лицензия изменена с GNU AGPL v3 на MIT
-- После `scan` сразу печатается таблица путей, дерево и сгруппированные findings (не нужно делать cat .jarvis.db)
-- Добавлен [DISCLAIMER.md](DISCLAIMER.md): отказ от ответственности за незаконное использование
-- В репозиторий включены исходники `cmd/jarvis` (раньше игнорировались `.gitignore`)
-- `go.mod` дополнен indirect-зависимостями — `go build` работает без `go mod tidy`
-- Минимальная версия Go: 1.22
+- README: одна рабочая последовательность для Kali (`go build` + `sudo install`), без `go install @latest` (тег v1.0.0 не содержит `cmd/jarvis`)
+- Лицензия MIT, исходники `cmd/jarvis` в репозитории
 
 ## [1.0.0] - 2026-08-19
 
