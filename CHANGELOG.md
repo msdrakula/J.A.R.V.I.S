@@ -7,9 +7,13 @@
 
 ## [Unreleased]
 
+### Added
+- `jarvis scan -u` работает без `config.yaml`: при отсутствии файла берутся безопасные дефолты (профиль level 3, встроенные wordlists)
+- `make install` ставит бинарник в `/usr/local/bin` и данные в `/usr/local/share/jarvis`
+
 ### Changed
 - Лицензия изменена с GNU AGPL v3 на MIT
-- `jarvis scan -u` / `--target`: запуск без обязательного config.yaml (URL/домен → recon+urlaudit+compliance, IP → portscan)
+- После `scan` сразу печатается таблица путей, дерево и сгруппированные findings (не нужно делать cat .jarvis.db)
 - Добавлен [DISCLAIMER.md](DISCLAIMER.md): отказ от ответственности за незаконное использование
 - В репозиторий включены исходники `cmd/jarvis` (раньше игнорировались `.gitignore`)
 - `go.mod` дополнен indirect-зависимостями — `go build` работает без `go mod tidy`

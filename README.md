@@ -7,7 +7,21 @@
 [![Tests](https://github.com/msdrakula/J.A.R.V.I.S/actions/workflows/test.yml/badge.svg)](https://github.com/msdrakula/J.A.R.V.I.S/actions/workflows/test.yml)
 [![Release](https://img.shields.io/github/v/release/msdrakula/J.A.R.V.I.S)](https://github.com/msdrakula/J.A.R.V.I.S/releases)
 
-Модульный CLI-инструмент на Go для автоматизированного аудита конфигурации, доступности и устойчивости веб-приложений в закрытом контуре.
+Модульный CLI на Go для **легального** аудита конфигурации, доступности и устойчивости веб-приложений. Запуск как у Nuclei/httpx: цель через `-u`, YAML не обязателен.
+
+## О проекте
+
+J.A.R.V.I.S. — инструмент **безопасного аудита собственной инфраструктуры** (или систем, на которые есть письменное разрешение / bug bounty). Он проверяет, как цель выглядит снаружи: DNS и TLS, какие пути отвечают, какие security-заголовки отсутствуют, есть ли WAF/CDN, как приложение реагирует на безобидные маркерные строки.
+
+Это **не** фреймворк для взлома и **не** замена Nuclei с эксплойт-шаблонами. Модули только наблюдают и сверяют конфигурацию: TCP connect, GET-запросы, разбор сертификатов и HTML, сопоставление ответов с YAML-правилами. Деструктивных действий, брутфорса паролей и построения payload нет.
+
+**Для кого:** внутренние security/DevOps-команды, владельцы контура, исследователи на программах с правилами.  
+**Для чего:** baseline перед релизом, регресс между сканами (`diff`), отчёты для DefectDojo/Metasploit (Nmap XML), HTML-дашборд.  
+**Где крутится:** Windows, Linux, Kali; один бинарник, встроенная SQLite, без CGO.
+
+Типичный сценарий: `jarvis scan -u http://10.0.0.5 -o ./results` — инструмент сам отличает URL/домен от «голого» IP, гоняет нужные модули, пишет всё в `.jarvis.db` и печатает в терминал пути, дерево и findings. Файл `.jarvis.db` — база, не текстовый отчёт; смотреть через `show` / `report`.
+
+Сканируйте только то, на что имеете право. Полный отказ от ответственности: [DISCLAIMER.md](DISCLAIMER.md).
 
 ## 🌟 Возможности
 
@@ -26,7 +40,62 @@
 
 Нужен **Go 1.22+** (`go version`). На Kali rolling обычно уже стоит.
 
-### Kali / Linux (клонирование репозитория)
+### Глобальная команда `jarvis` (Kali / Linux)
+
+Чтобы запускать `jarvis` из любой директории, а не `./jarvis` из папки репозитория:
+
+```bash
+git clone https://github.com/msdrakula/J.A.R.V.I.S.git
+cd J.A.R.V.I.S
+sudo make install
+```
+
+Это:
+
+1. Собирает бинарник.
+2. Копирует его в `/usr/local/bin/jarvis` (каталог уже в `PATH` на Kali).
+3. Кладёт `rules.yaml`, `waf_signatures.yaml` и `wordlists/` в `/usr/local/share/jarvis`.
+
+Проверка:
+
+```bash
+which jarvis
+# /usr/local/bin/jarvis
+
+jarvis --help
+jarvis scan -u http://127.0.0.1 -o ./results
+```
+
+Обновление уже установленной копии:
+
+```bash
+cd ~/J.A.R.V.I.S
+git fetch origin && git reset --hard origin/main
+sudo make install
+```
+
+Удаление:
+
+```bash
+cd ~/J.A.R.V.I.S
+sudo make uninstall
+```
+
+Если `which jarvis` ничего не находит, добавьте `/usr/local/bin` в PATH:
+
+```bash
+echo 'export PATH="/usr/local/bin:$PATH"' >> ~/.zshrc
+source ~/.zshrc
+```
+
+Без `sudo` (бинарник попадёт в `$(go env GOPATH)/bin`; на Kali это часто `~/go/bin`):
+
+```bash
+make go-install
+export PATH="$(go env GOPATH)/bin:$PATH"
+```
+
+### Локальная сборка без установки
 
 ```bash
 git clone https://github.com/msdrakula/J.A.R.V.I.S.git
@@ -35,26 +104,23 @@ go build -o jarvis ./cmd/jarvis
 ./jarvis --help
 ```
 
-Если репозиторий уже склонирован, обновите его и пересоберите:
-
-```bash
-cd ~/J.A.R.V.I.S
-git pull
-go build -o jarvis ./cmd/jarvis
-./jarvis --help
-```
-
-### Из исходников (модуль)
+### Из модуля Go
 
 ```bash
 go install github.com/msdrakula/J.A.R.V.I.S/cmd/jarvis@latest
 ```
 
-### Бинарники
+После этого команда доступна, если `$(go env GOPATH)/bin` есть в `PATH`.
 
-Скачай готовый бинарник для твоей ОС со страницы [Releases](https://github.com/msdrakula/J.A.R.V.I.S/releases).
+### Готовые бинарники
 
-### Debian/Kali Linux (deb-пакет)
+Скачай бинарник для своей ОС со страницы [Releases](https://github.com/msdrakula/J.A.R.V.I.S/releases) и скопируй его в `/usr/local/bin`:
+
+```bash
+sudo install -m 755 jarvis /usr/local/bin/jarvis
+```
+
+### Debian/Kali (deb-пакет)
 
 ```bash
 wget https://github.com/msdrakula/J.A.R.V.I.S/releases/latest/download/jarvis_amd64.deb
@@ -67,18 +133,18 @@ sudo dpkg -i jarvis_amd64.deb
 
 ```bash
 # Домен или URL
-./jarvis scan -u https://example.com -o ./results
+jarvis scan -u https://example.com -o ./results
 
 # Короткий домен (будет https://)
-./jarvis scan -u example.com -o ./results
+jarvis scan -u example.com -o ./results
 
 # IP — проверка портов 22, 80, 443
-./jarvis scan -u 192.168.1.10 -o ./results
+jarvis scan -u 192.168.1.10 -o ./results
 
 # Результаты
-./jarvis history -o ./results
-./jarvis show <scan_id> -o ./results
-./jarvis report <scan_id> --format html --output dashboard.html -o ./results
+jarvis history -o ./results
+jarvis show <scan_id> -o ./results
+jarvis report <scan_id> --format html --output dashboard.html -o ./results
 ```
 
 `-u` и `--target` — одно и то же. `--level` по умолчанию 3. `-c config.yaml` опционален.
@@ -127,7 +193,7 @@ jarvis report <scan_id> --format nmap --output nmap.xml -o ./results
 `config.yaml` не обязателен. Он нужен, чтобы переопределить таймауты, прокси, пути к `rules.yaml` и `waf_signatures.yaml`:
 
 ```bash
-./jarvis scan -u https://example.com -c config.example.yaml --level 3 -o ./results
+jarvis scan -u https://example.com -c config.example.yaml --level 3 -o ./results
 ```
 
 Пример `config.example.yaml`:
@@ -145,6 +211,33 @@ http:
 ```
 
 Секция `inventory` в YAML больше не нужна для обычного запуска: цель задаётся через `-u`.
+
+### Как выбираются модули
+
+| Что передали в `-u` | Что запускается |
+|---|---|
+| `https://site` / `http://host` / домен | recon, urlaudit, compliance, waf, resilience |
+| Чистый IP (`192.168.1.10`) | проверка TCP-портов (по умолчанию 22, 80, 443) |
+| `http://192.168.1.10` | как сайт (веб-модули) |
+
+`-o` — каталог результатов (там появится скрытый `.jarvis.db`). Тот же путь указывайте в `history` / `show` / `report`.
+
+### Модули
+
+| Модуль | Что делает |
+|---|---|
+| **recon** | DNS (A/AAAA/MX/TXT), TLS-сертификат, `robots.txt`, `sitemap.xml`, параметры HTML-форм |
+| **availability** | TCP connect, баннер сервиса |
+| **urlaudit** | пути из словаря, soft-404, отсутствие security headers |
+| **compliance** | правила из `rules.yaml` (status / header / word / regex) |
+| **waflib** | пассивный fingerprint WAF/CDN по заголовкам и телу |
+| **resilience** | безопасные маркеры в найденных параметрах: отражение и 5xx |
+
+### Хранение и отчёты
+
+Результаты пишутся в SQLite (`.jarvis.db` в каталоге `-o`): сканы, DNS, TLS, пути, порты, findings, параметры. Это не человекочитаемый лог.
+
+Смотреть: `jarvis show`, `jarvis history`, HTML/CSV/Nmap XML через `jarvis report`. Ctrl+C сохраняет прогресс (`paused`), продолжение — `jarvis resume`.
 
 ### YAML-шаблоны (rules.yaml)
 

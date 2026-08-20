@@ -68,6 +68,12 @@ func loadRuntime() (*config.Config, *zap.Logger, *storage.Store, string, error) 
 	if cfg.OutputDir == "" {
 		cfg.OutputDir = "./results"
 	}
+	if found := config.FindDataFile(cfg.RulesPath); found != "" {
+		cfg.RulesPath = found
+	}
+	if found := config.FindDataFile(cfg.WAFSignaturesPath); found != "" {
+		cfg.WAFSignaturesPath = found
+	}
 
 	log, err := logger.New(verbose, quiet)
 	if err != nil {
@@ -117,6 +123,9 @@ func createScan(store *storage.Store, target string, modules []string, output st
 func loadWordlist(path string) ([]string, error) {
 	if path == "" {
 		return nil, nil
+	}
+	if found := config.FindDataFile(path); found != "" {
+		path = found
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -273,60 +282,14 @@ func newShowCmd() *cobra.Command {
 			}
 			defer store.Close()
 
-			scanRows, err := store.Query(args[0], "SELECT * FROM scans WHERE id = ?", args[0])
+			scanRows, err := store.Query(args[0], "SELECT target FROM scans WHERE id = ?", args[0])
 			if err != nil {
 				return err
 			}
-			for _, row := range scanRows {
-				fmt.Println("Scan:", row)
+			if len(scanRows) == 0 {
+				return fmt.Errorf("scan %q not found", args[0])
 			}
-
-			counts := []struct {
-				label string
-				query string
-			}{
-				{label: "DNS records", query: "SELECT COUNT(*) AS count FROM dns_records WHERE scan_id = ?"},
-				{label: "TLS entries", query: "SELECT COUNT(*) AS count FROM tls_info WHERE scan_id = ?"},
-				{label: "Service checks", query: "SELECT COUNT(*) AS count FROM service_availability WHERE scan_id = ?"},
-				{label: "Paths", query: "SELECT COUNT(*) AS count FROM paths WHERE scan_id = ?"},
-				{label: "Parameters", query: "SELECT COUNT(*) AS count FROM parameters WHERE scan_id = ?"},
-				{label: "Findings", query: "SELECT COUNT(*) AS count FROM findings WHERE scan_id = ?"},
-			}
-			for _, item := range counts {
-				rows, err := store.Query(args[0], item.query, args[0])
-				if err != nil {
-					return err
-				}
-				fmt.Printf("%s: %v\n", item.label, rows[0]["count"])
-			}
-
-			missingHeaders, err := store.Query(args[0], "SELECT name, url FROM findings WHERE scan_id = ? AND category = 'security-header'", args[0])
-			if err != nil {
-				return err
-			}
-			fmt.Println("Missing security headers:")
-			for _, row := range missingHeaders {
-				fmt.Printf("- %v at %v\n", row["name"], row["url"])
-			}
-
-			complianceFindings, err := store.Query(args[0], "SELECT name, url, evidence FROM findings WHERE scan_id = ? AND category = 'compliance'", args[0])
-			if err != nil {
-				return err
-			}
-			fmt.Println("Compliance findings:")
-			for _, row := range complianceFindings {
-				fmt.Printf("- %v at %v (%v)\n", row["name"], row["url"], row["evidence"])
-			}
-
-			pathRows, err := store.Query(args[0], "SELECT url, status_code FROM paths WHERE scan_id = ?", args[0])
-			if err != nil {
-				return err
-			}
-			if len(pathRows) > 0 {
-				fmt.Println("Path tree:")
-				fmt.Print(renderPathTree(pathRows))
-			}
-
+			printScanSummary(store, args[0], fmt.Sprintf("%v", scanRows[0]["target"]), "", nil)
 			return nil
 		},
 	}

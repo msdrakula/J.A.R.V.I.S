@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/viper"
@@ -116,7 +117,15 @@ func ExistingFile(path string) string {
 
 func Load(path string) (*Config, error) {
 	cfg := Defaults()
-	if strings.TrimSpace(path) == "" {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		cfg.Normalize()
+		return cfg, nil
+	}
+
+	if _, err := os.Stat(path); err != nil {
+		// Нет файла — не ошибка. Nuclei-режим: scan -u работает без YAML.
+		cfg.Normalize()
 		return cfg, nil
 	}
 
@@ -140,12 +149,45 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("http.insecure_skip_verify", false)
 
 	if err := v.ReadInConfig(); err != nil {
-		return nil, err
+		cfg.Normalize()
+		return cfg, nil
 	}
 
 	if err := v.Unmarshal(cfg); err != nil {
-		return nil, err
+		cfg.Normalize()
+		return cfg, nil
 	}
 	cfg.Normalize()
 	return cfg, nil
+}
+
+// FindDataFile ищет rules/wordlists рядом с cwd, бинарником и в /usr/share/jarvis.
+func FindDataFile(rel string) string {
+	if rel == "" {
+		return ""
+	}
+	if p := ExistingFile(rel); p != "" {
+		return p
+	}
+	var candidates []string
+	if wd, err := os.Getwd(); err == nil {
+		candidates = append(candidates, filepath.Join(wd, rel))
+	}
+	if exe, err := os.Executable(); err == nil {
+		dir := filepath.Dir(exe)
+		candidates = append(candidates,
+			filepath.Join(dir, rel),
+			filepath.Join(dir, "share", "jarvis", rel),
+		)
+	}
+	candidates = append(candidates,
+		filepath.Join("/usr/local/share/jarvis", rel),
+		filepath.Join("/usr/share/jarvis", rel),
+	)
+	for _, p := range candidates {
+		if found := ExistingFile(p); found != "" {
+			return found
+		}
+	}
+	return ""
 }

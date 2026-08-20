@@ -81,7 +81,7 @@ func newScanCmd() *cobra.Command {
 				return err
 			}
 			cfg.ApplyProfile(profile)
-			log.Info("audit profile", zap.String("profile", profile.Name), zap.Int("level", profile.Level))
+			log.Debug("audit profile", zap.String("profile", profile.Name), zap.Int("level", profile.Level))
 
 			parsed, err := parseScanTarget(target)
 			if err != nil {
@@ -117,15 +117,11 @@ func newScanCmd() *cobra.Command {
 				return err
 			}
 
-			log.Info("audit completed", zap.String("db", dbPath), zap.String("scan_id", scanID), zap.String("target", parsed.Raw))
-			fmt.Println("Scan completed:", scanID)
+			log.Debug("audit completed", zap.String("db", dbPath), zap.String("scan_id", scanID), zap.String("target", parsed.Raw))
+			printScanSummary(store, scanID, parsed.Raw, dbPath, errs)
 			if len(errs) > 0 {
 				if store != nil {
 					_ = store.UpdateScanStatus(scanID, "failed")
-				}
-				fmt.Println("Warnings:")
-				for _, item := range errs {
-					fmt.Println("-", item)
 				}
 			} else if store != nil {
 				_ = store.UpdateScanStatus(scanID, "completed")
@@ -278,7 +274,7 @@ func runWebScan(store *storage.Store, cfg *config.Config, client *httpclient.Cli
 	if interrupted(scanID) {
 		return scanID, errs, fmt.Errorf("scan interrupted")
 	}
-	if sigPath := config.ExistingFile(wafPath); sigPath != "" {
+	if sigPath := config.FindDataFile(wafPath); sigPath != "" {
 		wafSigs, err := waflib.LoadSignatures(sigPath)
 		if err != nil {
 			errs = append(errs, err.Error())
@@ -308,7 +304,7 @@ func runWebScan(store *storage.Store, cfg *config.Config, client *httpclient.Cli
 	}
 
 	var rules []compliance.Rule
-	if rulePath := config.ExistingFile(rulesPath); rulePath != "" {
+	if rulePath := config.FindDataFile(rulesPath); rulePath != "" {
 		loaded, err := compliance.LoadRules(rulePath)
 		if err != nil {
 			errs = append(errs, err.Error())

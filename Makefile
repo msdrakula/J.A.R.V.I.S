@@ -1,7 +1,10 @@
-.PHONY: build test clean install lint fmt help
+.PHONY: build test clean install uninstall go-install lint fmt help
 
 # Переменные
 BINARY_NAME=jarvis
+PREFIX ?= /usr/local
+BINDIR ?= $(PREFIX)/bin
+SHAREDIR ?= $(PREFIX)/share/jarvis
 VERSION=$(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 BUILD_TIME=$(shell date -u '+%Y-%m-%d_%H:%M:%S')
 LDFLAGS=-ldflags "-X main.version=$(VERSION) -X main.buildTime=$(BUILD_TIME)"
@@ -41,8 +44,23 @@ clean: ## Очистить артефакты сборки
 	rm -rf results/
 	@echo "$(COLOR_GREEN)Cleaned$(COLOR_RESET)"
 
-install: build ## Установить бинарник в GOPATH/bin
-	@echo "$(COLOR_GREEN)Installing $(BINARY_NAME)...$(COLOR_RESET)"
+install: build ## Установить jarvis глобально в /usr/local/bin (нужен sudo)
+	@echo "$(COLOR_GREEN)Installing $(BINARY_NAME) to $(BINDIR)...$(COLOR_RESET)"
+	install -d $(DESTDIR)$(BINDIR)
+	install -m 755 $(BINARY_NAME) $(DESTDIR)$(BINDIR)/$(BINARY_NAME)
+	install -d $(DESTDIR)$(SHAREDIR)/wordlists
+	-install -m 644 rules.yaml waf_signatures.yaml $(DESTDIR)$(SHAREDIR)/
+	-install -m 644 wordlists/* $(DESTDIR)$(SHAREDIR)/wordlists/
+	@echo "$(COLOR_GREEN)Installed: $(BINDIR)/$(BINARY_NAME)$(COLOR_RESET)"
+	@echo "From any directory: jarvis scan -u https://example.com -o ./results"
+
+uninstall: ## Удалить глобальную установку из /usr/local
+	rm -f $(DESTDIR)$(BINDIR)/$(BINARY_NAME)
+	rm -rf $(DESTDIR)$(SHAREDIR)
+	@echo "$(COLOR_YELLOW)Removed $(BINDIR)/$(BINARY_NAME)$(COLOR_RESET)"
+
+go-install: ## Установить в GOPATH/bin (без sudo, если GOPATH/bin в PATH)
+	@echo "$(COLOR_GREEN)Installing $(BINARY_NAME) via go install...$(COLOR_RESET)"
 	go install $(LDFLAGS) ./cmd/jarvis
 	@echo "$(COLOR_GREEN)Installed to $(shell go env GOPATH)/bin/$(BINARY_NAME)$(COLOR_RESET)"
 
@@ -68,9 +86,9 @@ build-all: ## Собрать бинарники для всех платформ
 	GOOS=windows GOARCH=amd64 go build $(LDFLAGS) -o $(BINARY_NAME)-windows-amd64.exe ./cmd/jarvis
 	@echo "$(COLOR_GREEN)Built binaries for Linux, macOS, Windows$(COLOR_RESET)"
 
-run: build ## Собрать и запустить с примером конфигурации
+run: build ## Собрать и показать справку (config.yaml не нужен)
 	@echo "$(COLOR_BLUE)Running $(BINARY_NAME)...$(COLOR_RESET)"
-	./$(BINARY_NAME) scan -c config.example.yaml -o ./results
+	./$(BINARY_NAME) scan --help
 
 docker-build: ## Собрать Docker-образ
 	@echo "$(COLOR_GREEN)Building Docker image...$(COLOR_RESET)"
@@ -79,4 +97,4 @@ docker-build: ## Собрать Docker-образ
 
 docker-run: ## Запустить в Docker-контейнере
 	@echo "$(COLOR_BLUE)Running in Docker...$(COLOR_RESET)"
-	docker run --rm -v $(PWD)/results:/results $(BINARY_NAME):$(VERSION) scan -c /config.yaml -o /results
+	docker run --rm -v $(PWD)/results:/results $(BINARY_NAME):$(VERSION) scan -u https://example.com -o /results

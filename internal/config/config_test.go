@@ -1,6 +1,10 @@
 package config
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
 
 func TestLoadEmptyPathUsesDefaults(t *testing.T) {
 	cfg, err := Load("")
@@ -18,6 +22,33 @@ func TestLoadEmptyPathUsesDefaults(t *testing.T) {
 	}
 	if len(cfg.HTTP.UserAgents) == 0 {
 		t.Fatal("expected default user-agent")
+	}
+}
+
+func TestLoadMissingFileUsesDefaults(t *testing.T) {
+	cfg, err := Load(filepath.Join(t.TempDir(), "does-not-exist.yaml"))
+	if err != nil {
+		t.Fatalf("missing config must not fail: %v", err)
+	}
+	if cfg == nil {
+		t.Fatal("expected defaults, got nil")
+	}
+	if cfg.HTTP.TimeoutSeconds <= 0 || len(cfg.HTTP.UserAgents) == 0 {
+		t.Fatalf("unsafe defaults: %+v", cfg.HTTP)
+	}
+}
+
+func TestFindDataFileResolvesExisting(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "rules.yaml")
+	if err := os.WriteFile(path, []byte("ok"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := FindDataFile(path); got != path {
+		t.Fatalf("FindDataFile: %q", got)
+	}
+	if got := FindDataFile(filepath.Join(dir, "missing.yaml")); got != "" {
+		t.Fatalf("expected empty, got %q", got)
 	}
 }
 

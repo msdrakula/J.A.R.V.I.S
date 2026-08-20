@@ -7,7 +7,10 @@ COPY . .
 RUN CGO_ENABLED=0 go build -o /out/jarvis ./cmd/jarvis
 
 FROM debian:bookworm-slim
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/* \
+	&& mkdir -p /usr/local/share/jarvis/wordlists
 COPY --from=build /out/jarvis /usr/local/bin/jarvis
+COPY rules.yaml waf_signatures.yaml /usr/local/share/jarvis/
+COPY wordlists/ /usr/local/share/jarvis/wordlists/
 WORKDIR /work
 ENTRYPOINT ["jarvis"]

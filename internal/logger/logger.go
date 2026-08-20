@@ -6,7 +6,7 @@ import (
 )
 
 func New(verbose bool, quiet bool) (*zap.Logger, error) {
-	level := zapcore.InfoLevel
+	level := zapcore.WarnLevel
 	if verbose {
 		level = zapcore.DebugLevel
 	}
