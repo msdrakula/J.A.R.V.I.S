@@ -8,10 +8,11 @@
 ## [Unreleased]
 
 ### Added
-- `jarvis scan -u` работает без `config.yaml`: при отсутствии файла берутся безопасные дефолты (профиль level 3, встроенные wordlists)
+- `jarvis scan -u` работает без `config.yaml`: при отсутствии файла берутся безопасные дефолты (профиль level 3, стандартные wordlists)
 - `make install` ставит бинарник в `/usr/local/bin` и данные в `/usr/local/share/jarvis`
 
 ### Changed
+- README переписан как пользовательская инструкция: установка (`go install` / бинарник), быстрый старт в стиле Nuclei, результаты, опциональный YAML, troubleshooting
 - Лицензия изменена с GNU AGPL v3 на MIT
 - После `scan` сразу печатается таблица путей, дерево и сгруппированные findings (не нужно делать cat .jarvis.db)
 - Добавлен [DISCLAIMER.md](DISCLAIMER.md): отказ от ответственности за незаконное использование
